@@ -1,0 +1,2 @@
+2026-03-27 10:44:13,686 - model_evaluation - ERROR - Failed to complete model evaluation: Unable to locate credentials
+2026-03-27 13:34:07,463 - model_evaluation - ERROR - Failed to complete model evaluation: check_array() got an unexpected keyword argument 'force_all_finite'
