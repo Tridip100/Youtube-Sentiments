@@ -2,7 +2,6 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 import numpy as np
-import pandas as pd
 
 
 # ── Mock model & vectorizer before importing app ──────────────────────────────
@@ -14,7 +13,7 @@ mock_vectorizer = MagicMock()
 mock_vectorizer.transform.return_value = MagicMock(toarray=lambda: np.zeros((3, 10)))
 mock_vectorizer.get_feature_names_out.return_value = [f"word_{i}" for i in range(10)]
 
-with patch("main.load_model_from_mlflow", return_value=(mock_model, mock_vectorizer)):
+with patch("backend.main.load_model_from_mlflow", return_value=(mock_model, mock_vectorizer)):
     from backend.main import app
 
 client = TestClient(app)
@@ -63,7 +62,6 @@ def test_predict_success(sample_comments):
 
     response = client.post("/predict", json={"comments": sample_comments})
     assert response.status_code == 200
-
     data = response.json()
     assert len(data) == 3
     assert "comment" in data[0]
@@ -103,7 +101,6 @@ def test_predict_with_timestamps_success(sample_comments_with_timestamps):
     response = client.post("/predict_with_timestamps",
                            json={"comments": sample_comments_with_timestamps})
     assert response.status_code == 200
-
     data = response.json()
     assert len(data) == 3
     assert "comment"   in data[0]
@@ -146,7 +143,6 @@ def test_generate_chart_all_zero():
     assert response.status_code == 400
 
 def test_generate_chart_partial_counts():
-    # Only positive comments — should still work
     response = client.post("/generate_chart",
                            json={"sentiment_counts": {"1": 100}})
     assert response.status_code == 200
@@ -156,8 +152,7 @@ def test_generate_chart_partial_counts():
 # ── POST /generate_wordcloud ──────────────────────────────────────────────────
 
 def test_generate_wordcloud_success(sample_comments):
-    response = client.post("/generate_wordcloud",
-                           json={"comments": sample_comments})
+    response = client.post("/generate_wordcloud", json={"comments": sample_comments})
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/png"
     assert len(response.content) > 0
