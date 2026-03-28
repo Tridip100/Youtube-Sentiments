@@ -2,7 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
 
 env:
   AWS_REGION: eu-north-1
@@ -10,6 +12,9 @@ env:
 
 jobs:
 
+# ─────────────────────────────
+# JOB 1: TEST
+# ─────────────────────────────
   test:
     runs-on: ubuntu-latest
 
@@ -19,24 +24,28 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
+          pip install --upgrade pip
           pip install -r requirements.txt
-          pip install "pathspec<0.12"
-          pip install dvc[s3]
-          pip install pytest httpx
+          pip install "pathspec<0.12"     # 🔥 fix
+          pip install pytest pytest-asyncio httpx
 
       - name: Download NLTK data
         run: |
           python -c "import nltk; nltk.download('stopwords'); nltk.download('wordnet')"
 
       - name: Run tests
-        run: pytest tests/ -v
+        run: pytest tests/ -v --tb=short
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
 
 
+# ─────────────────────────────
+# JOB 2: DVC
+# ─────────────────────────────
   dvc:
     runs-on: ubuntu-latest
     needs: test
@@ -50,7 +59,7 @@ jobs:
 
       - name: Install DVC
         run: |
-          pip install "pathspec<0.12"
+          pip install "pathspec<0.12"     # 🔥 fix
           pip install dvc[s3]
 
       - name: Configure AWS
@@ -60,6 +69,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # 🔥 FIX: ensure remote exists in CI (in case config missing)
+      - name: Ensure DVC remote exists
+        run: |
+          dvc remote add -d origin s3://mlflow-bucket-251/youtube-sentiment/dvc -f
+          dvc remote modify origin region $AWS_REGION
+
+      # 🔥 FIX: prevent overwrite crash
       - name: Clean existing data
         run: |
           rm -rf data/raw/*.csv || true
@@ -70,11 +86,16 @@ jobs:
 
       - name: Reproduce pipeline
         run: dvc repro
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
 
       - name: Push artifacts
         run: dvc push
 
 
+# ─────────────────────────────
+# JOB 3: BUILD
+# ─────────────────────────────
   build:
     runs-on: ubuntu-latest
     needs: dvc
@@ -90,10 +111,46 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & Push Docker
+      - name: Build and Push
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          IMAGE_TAG=${{ github.sha }}
-          docker build -t ${{ secrets.ECR_REGISTRY }}/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push ${{ secrets.ECR_REGISTRY }}/$ECR_REPOSITORY:$IMAGE_TAG
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+                     $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+
+# ─────────────────────────────
+# JOB 4: DEPLOY (UNCHANGED LOGIC)
+# ─────────────────────────────
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy via SSM
+        run: |
+          aws ssm send-command \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "docker pull ${{ secrets.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest",
+              "docker stop sentiment-api || true",
+              "docker rm sentiment-api || true",
+              "docker run -d -p 8000:8000 --name sentiment-api \
+                -e MLFLOW_TRACKING_URI=${{ secrets.MLFLOW_TRACKING_URI }} \
+                ${{ secrets.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest"
+            ]'
