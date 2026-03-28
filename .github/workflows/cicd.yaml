@@ -30,9 +30,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-asyncio httpx
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+            pip install "pathspec<0.12"
+            pip install dvc[s3]
 
       - name: Download NLTK data
         run: |
@@ -77,13 +78,12 @@ dvc:
         aws-region: ${{ env.AWS_REGION }}
 
     # 🔥 CRITICAL FIX — CLEAN EXISTING FILES
-    - name: Clean existing data (avoid DVC conflict)
+    - name: Clean existing data
       run: |
         rm -rf data/raw/*.csv || true
         rm -rf data/interim/*.csv || true
 
-    # 🔥 CRITICAL FIX — FORCE PULL
-    - name: Pull data from S3 via DVC
+    - name: Pull data
       run: dvc pull --force
 
     - name: Reproduce DVC pipeline (only if changed)
