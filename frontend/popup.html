@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>YouTube Sentiment Insights</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --border: #2a2a3a;
+    --accent: #ff3c5f;
+    --accent2: #7c3aed;
+    --positive: #22d3a0;
+    --neutral: #f59e0b;
+    --negative: #ff3c5f;
+    --text: #f0f0f8;
+    --muted: #6b6b88;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    width: 400px;
+    min-height: 200px;
+    max-height: 600px;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  /* scrollbar */
+  body::-webkit-scrollbar { width: 4px; }
+  body::-webkit-scrollbar-track { background: var(--bg); }
+  body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Header */
+  .header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 20px;
+    width: 40px; height: 2px;
+    background: var(--accent);
+  }
+
+  .logo-mark {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .header-text h1 {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    line-height: 1;
+  }
+
+  .header-text p {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+    font-family: var(--font-mono);
+  }
+
+  .analyze-btn {
+    margin-left: auto;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 8px 16px;
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .analyze-btn:hover { opacity: 0.85; }
+  .analyze-btn:active { transform: scale(0.97); }
+  .analyze-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .main { padding: 16px 20px; }
+
+  /* Video chip */
+  .video-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  .video-chip span { color: var(--text); }
+
+  /* Status */
+  #status-bar {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 5px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text);
+    align-items: center;
+    gap: 10px;
+  }
+
+  #status-bar.show { display: flex; }
+
+  .spinner {
+    width: 12px; height: 12px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Error */
+  .error-box {
+    background: rgba(255,60,95,0.08);
+    border: 1px solid rgba(255,60,95,0.3);
+    border-radius: 5px;
+    padding: 10px 14px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 14px;
+    display: none;
+  }
+
+  .error-box.show { display: block; }
+
+  /* Metrics */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    position: relative;
+    overflow: hidden;
+    animation: fadeUp 0.35s ease both;
+  }
+
+  .metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .metric-card:nth-child(1)::before { background: var(--accent); }
+  .metric-card:nth-child(2)::before { background: var(--accent2); }
+  .metric-card:nth-child(3)::before { background: var(--positive); }
+  .metric-card:nth-child(4)::before { background: var(--neutral); }
+
+  .metric-label {
+    font-size: 9px;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .metric-value {
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.5px;
+  }
+
+  .metric-sub {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 4px;
+    font-family: var(--font-mono);
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Panel */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    animation: fadeUp 0.35s ease both;
+  }
+
+  .panel-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+
+  .panel-tag {
+    font-size: 9px;
+    font-family: var(--font-mono);
+    background: var(--surface2);
+    color: var(--muted);
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: auto;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+
+  .panel-body { padding: 14px; }
+
+  /* Sentiment bars */
+  .sentiment-bars { display: flex; flex-direction: column; gap: 10px; }
+
+  .sbar-row { display: flex; flex-direction: column; gap: 4px; }
+
+  .sbar-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    font-family: var(--font-mono);
+  }
+
+  .sbar-track {
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .sbar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s cubic-bezier(.4,0,.2,1);
+  }
+
+  /* Score ring */
+  .score-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 12px;
+  }
+
+  .score-label-small {
+    font-size: 9px;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  /* Image panels */
+  .chart-img {
+    width: 100%;
+    border-radius: 4px;
+    display: none;
+  }
+
+  .img-placeholder {
+    width: 100%;
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface2);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  /* Comments */
+  .comment-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .comment-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 10px 12px;
+    display: grid;
+    grid-template-columns: 22px 1fr auto;
+    gap: 8px;
+    align-items: start;
+    animation: fadeUp 0.3s ease both;
+  }
+
+  .comment-num {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--muted);
+    padding-top: 2px;
+  }
+
+  .comment-text {
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text);
+    word-break: break-word;
+  }
+
+  .sentiment-badge {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    padding: 3px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  .badge-pos { background: rgba(34,211,160,0.15); color: var(--positive); }
+  .badge-neu { background: rgba(245,158,11,0.15);  color: var(--neutral); }
+  .badge-neg { background: rgba(255,60,95,0.15);   color: var(--negative); }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+  }
+
+  .empty-state h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text);
+    opacity: 0.4;
+  }
+
+  .empty-state p {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    line-height: 1.6;
+  }
+
+  #results { display: none; }
+  #results.show { display: block; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo-mark">▶</div>
+  <div class="header-text">
+    <h1>Sentiment Insights</h1>
+    <p>youtube comment analysis</p>
+  </div>
+  <button class="analyze-btn" id="analyze-btn">Analyze →</button>
+</header>
+
+<div class="main">
+
+  <div class="error-box" id="error-box"></div>
+
+  <div id="status-bar">
+    <div class="spinner"></div>
+    <span id="status-text">Initializing...</span>
+  </div>
+
+  <div id="empty-state" class="empty-state">
+    <h3>Open a YouTube video</h3>
+    <p>Navigate to any YouTube watch page,<br/>then click Analyze →</p>
+  </div>
+
+  <div id="results">
+
+    <div class="video-chip" id="video-chip">
+      VIDEO ID <span id="video-id-text">—</span>
+    </div>
+
+    <div class="metrics-grid" id="metrics-grid"></div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Sentiment Breakdown</div>
+        <div class="panel-tag">distribution</div>
+      </div>
+      <div class="panel-body">
+        <div class="sentiment-bars" id="sentiment-bars"></div>
+        <div class="score-row">
+          <div>
+            <svg id="score-ring-svg" width="72" height="72" viewBox="0 0 72 72"></svg>
+            <div class="score-label-small">score / 10</div>
+          </div>
+          <div id="score-summary" style="font-size:11px; color:var(--muted); font-family:var(--font-mono); line-height:1.6;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Sentiment Chart</div>
+        <div class="panel-tag">from backend</div>
+      </div>
+      <div class="panel-body" style="padding:10px;">
+        <div class="img-placeholder" id="pie-placeholder">Loading chart...</div>
+        <img class="chart-img" id="pie-chart"/>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Sentiment Trend Over Time</div>
+        <div class="panel-tag">time series</div>
+      </div>
+      <div class="panel-body" style="padding:10px;">
+        <div class="img-placeholder" id="trend-placeholder">Loading trend...</div>
+        <img class="chart-img" id="trend-chart"/>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Word Cloud</div>
+        <div class="panel-tag">nlp</div>
+      </div>
+      <div class="panel-body" style="padding:10px;">
+        <div class="img-placeholder" id="wc-placeholder">Loading word cloud...</div>
+        <img class="chart-img" id="wc-chart"/>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Top 25 Comments</div>
+        <div class="panel-tag">with sentiment</div>
+      </div>
+      <div class="panel-body">
+        <div class="comment-list" id="comment-list"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>
