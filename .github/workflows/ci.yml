@@ -1,0 +1,99 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+  pull_request:
+
+env:
+  AWS_REGION: eu-north-1
+  ECR_REPOSITORY: youtube-sentiment
+
+jobs:
+
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install "pathspec<0.12"
+          pip install dvc[s3]
+          pip install pytest httpx
+
+      - name: Download NLTK data
+        run: |
+          python -c "import nltk; nltk.download('stopwords'); nltk.download('wordnet')"
+
+      - name: Run tests
+        run: pytest tests/ -v
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+
+
+  dvc:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install DVC
+        run: |
+          pip install "pathspec<0.12"
+          pip install dvc[s3]
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Clean existing data
+        run: |
+          rm -rf data/raw/*.csv || true
+          rm -rf data/interim/*.csv || true
+
+      - name: Pull data
+        run: dvc pull --force
+
+      - name: Reproduce pipeline
+        run: dvc repro
+
+      - name: Push artifacts
+        run: dvc push
+
+
+  build:
+    runs-on: ubuntu-latest
+    needs: dvc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push Docker
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          docker build -t ${{ secrets.ECR_REGISTRY }}/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push ${{ secrets.ECR_REGISTRY }}/$ECR_REPOSITORY:$IMAGE_TAG
