@@ -15,7 +15,7 @@ mock_vectorizer.transform.return_value = MagicMock(toarray=lambda: np.zeros((3, 
 mock_vectorizer.get_feature_names_out.return_value = [f"word_{i}" for i in range(10)]
 
 with patch("main.load_model_from_mlflow", return_value=(mock_model, mock_vectorizer)):
-    from fastapi.main import app
+    from backend.main import app
 
 client = TestClient(app)
 
