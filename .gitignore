@@ -79,7 +79,7 @@ target/
 .ipynb_checkpoints/
 
 # exclude data from source control by default
-/data/
+
 
 # Mac OS-specific storage files
 .DS_Store
@@ -93,3 +93,4 @@ target/
 /lgbm_model.pkl
 /tfidf_vectorizer.pkl
 /experiment_info.json
+data/
