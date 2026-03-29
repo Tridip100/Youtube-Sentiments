@@ -135,16 +135,24 @@ jobs:
     needs: build
 
     steps:
-      - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+    - name: Configure AWS
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
 
-      - name: Deploy via SSM
-        run: |
-          aws ssm send-command \
-            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
-            --document-name "AWS-RunShellScript" \
-            --parameters 'commands=[ "aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}", "docker pull ${{ secrets.ECR_REGISTRY }}/ml-project:latest", "docker stop sentiment-api || true", "docker rm sentiment-api || true", "docker run -d -p 8000:8000 --name sentiment-api --restart always \ -e MLFLOW_TRACKING_URI=${{ secrets.MLFLOW_TRACKING_URI }} \ ${{ secrets.ECR_REGISTRY }}/ml-project:latest" ]'
+    - name: Deploy via SSM
+      run: |
+        aws ssm send-command \
+          --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+          --document-name "AWS-RunShellScript" \
+          --parameters 'commands=[
+            "set -e",
+            "aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 460589479074.dkr.ecr.eu-north-1.amazonaws.com",
+            "docker pull 460589479074.dkr.ecr.eu-north-1.amazonaws.com/ml-project:latest",
+            "docker stop sentiment-api || true",
+            "docker rm sentiment-api || true",
+            "docker run -d -p 8000:8000 --name sentiment-api --restart always -e MLFLOW_TRACKING_URI=${{ secrets.MLFLOW_TRACKING_URI }} 460589479074.dkr.ecr.eu-north-1.amazonaws.com/ml-project:latest"
+          ]' \
+          --region eu-north-1
