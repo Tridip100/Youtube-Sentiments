@@ -78,8 +78,7 @@ def preprocess_comment(comment: str) -> str:
 
 # ── Model Loading (LAZY) ──────────────────────────────────────────────────────
 
-model = None
-vectorizer = None
+
 
 def load_model_from_mlflow(model_name: str, model_version: str, vectorizer_path: str):
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
@@ -90,6 +89,23 @@ def load_model_from_mlflow(model_name: str, model_version: str, vectorizer_path:
         vectorizer = pickle.load(f)
 
     return model, vectorizer
+
+
+model = None
+vectorizer = None
+
+print("Loading model...")
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+vectorizer_path = os.path.join(BASE_DIR, "../tfidf_vectorizer.pkl")
+
+model, vectorizer = load_model_from_mlflow(
+    model_name="my_model",
+    model_version="1",
+    vectorizer_path=vectorizer_path
+)
+
+print("Model loaded!")
 
 
 def get_model():
