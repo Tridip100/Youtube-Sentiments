@@ -1,7 +1,7 @@
 // popup.js
 
 const YT_API_KEY = 'AIzaSyDNsaUSxHeDAmiXweVWLXBXnjBhwkCNSco';
-const API_URL = 'http://localhost:8000'; // FastAPI default port
+const API_URL = 'http://13.60.150.198:8000'; // FastAPI default port
 
 document.getElementById('analyze-btn').addEventListener('click', analyze);
 
