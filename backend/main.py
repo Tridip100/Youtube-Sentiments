@@ -246,7 +246,7 @@ def generate_trend_graph(body: TrendRequest):
                  linestyle='-', label=sentiment_labels[val],
                  color=colors[val])
 
-    plt.title('Monthly Sentiment Percentage Over Time')
+    plt.title('Monthly Sentiment Percentage Over the Time')
     plt.xlabel('Month')
     plt.ylabel('Percentage of Comments (%)')
     plt.grid(True)
